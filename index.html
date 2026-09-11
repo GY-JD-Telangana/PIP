@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JD TG PIP - PIN CHECKER</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fuse.js for fuzzy search -->
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        jdgreen: {
+                            DEFAULT: '#367C2B',
+                            dark: '#26591E',
+                            light: '#4B9B3D'
+                        },
+                        jdyellow: {
+                            DEFAULT: '#FFDE00',
+                            dark: '#E0C300'
+                        },
+                        jdcharcoal: '#27251F'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Mobile-optimized responsive table transform */
+        @media (max-width: 768px) {
+            .mobile-card-table thead {
+                display: none;
+            }
+            .mobile-card-table, 
+            .mobile-card-table tbody, 
+            .mobile-card-table tr, 
+            .mobile-card-table td {
+                display: block;
+                width: 100%;
+            }
+            .mobile-card-table tr {
+                margin-bottom: 1rem;
+                background-color: #ffffff;
+                border-radius: 0.75rem;
+                box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+                border: 1px solid #e2e8f0;
+                padding: 0.75rem 1rem;
+            }
+            .mobile-card-table td {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0.5rem 0;
+                border-bottom: 1px solid #f1f5f9;
+                text-align: right;
+            }
+            .mobile-card-table td:last-child {
+                border-bottom: none;
+            }
+            .mobile-card-table td::before {
+                content: attr(data-label);
+                font-weight: 700;
+                text-transform: uppercase;
+                font-size: 0.75rem;
+                color: #64748b;
+                text-align: left;
+                padding-right: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-jdcharcoal min-h-screen flex flex-direction-col flex-col antialiased">
+
+    <header class="bg-jdgreen border-b-4 border-jdyellow shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-jdyellow rounded-full flex items-center justify-center shadow-inner font-black text-jdgreen text-lg tracking-tighter">
+                    JD
+                </div>
+                <h1 class="text-xl sm:text-2xl font-black tracking-wide text-white uppercase">
+                    JD TG PIP - PIN CHECKER
+                </h1>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button 
+                    id="refreshBtn" 
+                    class="px-3 py-1.5 bg-jdyellow hover:bg-jdyellow-dark text-jdcharcoal font-semibold text-xs sm:text-sm rounded-md transition shadow flex items-center gap-1.5 active:scale-95"
+                    title="Reload data from server"
+                >
+                    <svg id="refreshIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span>Refresh</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+        
+        <!-- Search Controls -->
+        <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+            <label for="pinSearch" class="block text-sm font-bold text-jdgreen uppercase tracking-wider mb-2">
+                PIN / Serial Search
+            </label>
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <input 
+                    type="text" 
+                    id="pinSearch" 
+                    class="w-full pl-11 pr-10 py-3 text-base sm:text-lg border-2 border-gray-300 rounded-lg focus:outline-none focus:border-jdgreen focus:ring-2 focus:ring-jdgreen/20 uppercase tracking-wider font-medium placeholder-gray-400 transition disabled:bg-gray-100 disabled:cursor-not-allowed" 
+                    placeholder="Enter full PIN or last digits (e.g. 047823 or 1PY5039...)"
+                    autocomplete="off"
+                    spellcheck="false"
+                    disabled
+                >
+                <button 
+                    id="clearSearch" 
+                    class="hidden absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                    type="button"
+                    title="Clear search"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <p class="mt-2 text-xs text-gray-500">
+                Exact matches for your entered PIN or serial digits are strictly isolated so adjacent serial numbers are filtered out.
+            </p>
+        </div>
+
+        <!-- Connection and Result Status Bar -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center text-sm font-medium gap-2 px-1">
+            <div id="statusIndicator" class="flex items-center space-x-2 text-gray-600">
+                <span class="inline-block w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
+                <span id="statusText">Contacting Power Automate server...</span>
+            </div>
+            <div id="recordsSummary" class="text-xs sm:text-sm font-semibold text-gray-500">
+                Waiting for data...
+            </div>
+        </div>
+
+        <!-- Loading & Tractor Mini-Game Banner -->
+        <div id="loadingGameCard" class="bg-gradient-to-br from-jdgreen-dark to-jdgreen text-white p-5 rounded-2xl shadow-md border-2 border-jdyellow space-y-4">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="space-y-1 text-center md:text-left">
+                    <div class="inline-flex items-center gap-2 bg-black/30 px-3 py-1 rounded-full text-xs font-bold text-jdyellow tracking-wide">
+                        <span class="w-2 h-2 rounded-full bg-jdyellow animate-ping"></span>
+                        LARGE DATASET RETRIEVAL (TYPICALLY ~90–100 SECONDS)
+                    </div>
+                    <h3 class="text-lg sm:text-xl font-black text-white">Retrieving Records from Power Automate</h3>
+                    <p class="text-xs text-gray-200" id="gameNotice">Play the John Deere Tractor Harvest mini-game while your data processes!</p>
+                </div>
+                <!-- Live Countdown & Timer Box -->
+                <div class="bg-black/40 border border-white/20 rounded-xl px-5 py-3 text-center min-w-[200px] shadow-inner">
+                    <div class="text-2xl font-black text-jdyellow font-mono tracking-wider" id="countdownClock">00:00</div>
+                    <div class="text-[10px] uppercase font-bold text-gray-300 mt-0.5" id="timerSubtitle">Elapsed Time (Max 180s)</div>
+                    <div class="w-full bg-white/20 rounded-full h-1.5 mt-2 overflow-hidden">
+                        <div id="timerBar" class="bg-jdyellow h-1.5 transition-all duration-1000 ease-linear" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mini Game Canvas Area -->
+            <div class="bg-jdcharcoal rounded-xl p-3 border border-white/10 flex flex-col items-center">
+                <div class="w-full flex justify-between items-center text-xs font-bold px-2 py-1 text-gray-300">
+                    <span class="flex items-center gap-1.5">
+                        <span class="text-base">🚜</span> 
+                        <span class="text-jdyellow">TRACTOR HARVEST</span>
+                    </span>
+                    <div class="flex items-center gap-4">
+                        <span>Score: <strong id="gameScore" class="text-jdyellow text-sm">0</strong></span>
+                        <span>Best: <strong id="gameHighScore" class="text-white text-sm">0</strong></span>
+                    </div>
+                </div>
+
+                <div class="relative w-full max-w-[540px] aspect-[16/9] bg-emerald-900/60 rounded-lg overflow-hidden border-2 border-white/20 my-1">
+                    <canvas id="harvestCanvas" class="w-full h-full block"></canvas>
+                    <div id="gameOverlay" class="absolute inset-0 bg-black/60 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center hidden">
+                        <p class="text-lg font-black text-jdyellow" id="gameOverText">Mud Stuck!</p>
+                        <p class="text-xs text-gray-200 mt-1 mb-3">Keep harvesting while the report finishes compiling.</p>
+                        <button id="restartGameBtn" class="px-4 py-1.5 bg-jdyellow text-jdcharcoal font-bold text-xs uppercase rounded-lg shadow hover:bg-yellow-300 active:scale-95 transition">
+                            Play Again
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Mobile Touch Controls -->
+                <div class="flex items-center justify-between w-full max-w-[540px] pt-2 px-1 text-xs">
+                    <button id="touchLeftBtn" class="flex-1 mr-2 py-2.5 bg-white/10 hover:bg-white/20 active:bg-jdyellow active:text-jdcharcoal font-extrabold rounded-lg select-none text-center border border-white/20 transition">
+                        ◀ Move Left
+                    </button>
+                    <span class="text-[11px] text-gray-400 hidden sm:inline">Use [◀ / ▶] or A / D keys</span>
+                    <button id="touchRightBtn" class="flex-1 ml-2 py-2.5 bg-white/10 hover:bg-white/20 active:bg-jdyellow active:text-jdcharcoal font-extrabold rounded-lg select-none text-center border border-white/20 transition">
+                        Move Right ▶
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full mobile-card-table text-left border-collapse">
+                    <thead class="bg-jdgreen text-white text-xs uppercase font-extrabold tracking-wider border-b-2 border-jdyellow">
+                        <tr>
+                            <th scope="col" class="py-3.5 px-4">PIN</th>
+                            <th scope="col" class="py-3.5 px-4">Dealer</th>
+                            <th scope="col" class="py-3.5 px-4">PIP Program</th>
+                            <th scope="col" class="py-3.5 px-4">PIP Number</th>
+                            <th scope="col" class="py-3.5 px-4">Part 1</th>
+                            <th scope="col" class="py-3.5 px-4">Part 2</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-gray-100 text-sm">
+                        <tr>
+                            <td colspan="6" class="py-12 px-4 text-center text-gray-500">
+                                <div class="flex flex-col items-center justify-center space-y-2">
+                                    <div class="w-7 h-7 border-2 border-jdgreen border-t-transparent rounded-full animate-spin"></div>
+                                    <p class="text-sm font-medium" id="loadingNotice">Fetching PIP records from Power Automate (typically takes 90–100s)...</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="bg-jdcharcoal text-gray-400 text-xs py-4 text-center border-t-2 border-jdyellow">
+        <p>John Deere TG PIP System &bull; PIN Checker Utility</p>
+    </footer>
+
+    <script>
+        const API_URL = "https://default39b03722b836496a85ec850f0957ca.6b.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/51299bf4a6864ed3b4f658c23eb74606/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=kYQ_C0kpAEe3oFhlWfPX2ASJflzvcFy7r_ClRUapjFc";
+
+        const TIMEOUT_SECONDS = 180; // Extended timeout up to 180 seconds
+
+        let pipData = [];
+        let fuseInstance = null;
+        let elapsedInterval = null;
+
+        const pinSearchInput = document.getElementById("pinSearch");
+        const clearSearchBtn = document.getElementById("clearSearch");
+        const tableBody = document.getElementById("tableBody");
+        const statusIndicator = document.getElementById("statusIndicator");
+        const recordsSummary = document.getElementById("recordsSummary");
+        const refreshBtn = document.getElementById("refreshBtn");
+        const refreshIcon = document.getElementById("refreshIcon");
+
+        const countdownClock = document.getElementById("countdownClock");
+        const timerBar = document.getElementById("timerBar");
+        const loadingGameCard = document.getElementById("loadingGameCard");
+
+        const canvas = document.getElementById("harvestCanvas");
+        const ctx = canvas ? canvas.getContext("2d") : null;
+        const gameOverlay = document.getElementById("gameOverlay");
+        const restartGameBtn = document.getElementById("restartGameBtn");
+        const gameScoreEl = document.getElementById("gameScore");
+        const gameHighScoreEl = document.getElementById("gameHighScore");
+        const touchLeftBtn = document.getElementById("touchLeftBtn");
+        const touchRightBtn = document.getElementById("touchRightBtn");
+
+        let gameAnimationId = null;
+        let gameScore = 0;
+        let gameHighScore = 0;
+        let isGameOver = false;
+
+        const tractor = {
+            lane: 1, // 0 = left, 1 = center, 2 = right
+            x: 0,
+            y: 0,
+            width: 44,
+            height: 38,
+            targetX: 0
+        };
+
+        let items = [];
+        let itemSpeed = 2.4;
+        let spawnTimer = 0;
+
+        function resizeGameCanvas() {
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * (window.devicePixelRatio || 1);
+            canvas.height = rect.height * (window.devicePixelRatio || 1);
+            if (ctx) ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+        }
+
+        function getLaneX(lane, width) {
+            const laneWidth = width / 3;
+            return lane * laneWidth + laneWidth / 2;
+        }
+
+        function resetGame() {
+            gameScore = 0;
+            itemSpeed = 2.4;
+            items = [];
+            isGameOver = false;
+            tractor.lane = 1;
+            if (gameScoreEl) gameScoreEl.textContent = "0";
+            if (gameOverlay) gameOverlay.classList.add("hidden");
+        }
+
+        function spawnItem(canvasLogicalWidth) {
+            const lane = Math.floor(Math.random() * 3);
+            const isObstacle = Math.random() < 0.35;
+            items.push({
+                lane: lane,
+                y: -30,
+                type: isObstacle ? "rock" : "crop",
+                emoji: isObstacle ? "🪨" : (Math.random() > 0.5 ? "🌽" : "🌾")
+            });
+        }
+
+        function updateAndDrawGame() {
+            if (!canvas || !ctx) return;
+            const w = canvas.getBoundingClientRect().width;
+            const h = canvas.getBoundingClientRect().height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Draw field lanes
+            const laneWidth = w / 3;
+            for (let i = 0; i < 3; i++) {
+                ctx.fillStyle = i % 2 === 0 ? "#1e4718" : "#24521c";
+                ctx.fillRect(i * laneWidth, 0, laneWidth, h);
+                // Striped field lines
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo((i + 1) * laneWidth, 0);
+                ctx.lineTo((i + 1) * laneWidth, h);
+                ctx.stroke();
+            }
+
+            if (!isGameOver) {
+                spawnTimer++;
+                if (spawnTimer > 42) {
+                    spawnItem(w);
+                    spawnTimer = 0;
+                }
+            }
+
+            // Smooth tractor movement
+            const targetX = getLaneX(tractor.lane, w);
+            tractor.x += (targetX - tractor.x) * 0.25;
+            tractor.y = h - 50;
+
+            // Draw Tractor
+            ctx.font = "28px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("🚜", tractor.x, tractor.y);
+
+            // Update & Draw Items
+            for (let i = items.length - 1; i >= 0; i--) {
+                const item = items[i];
+                if (!isGameOver) {
+                    item.y += itemSpeed;
+                }
+
+                const itemX = getLaneX(item.lane, w);
+                ctx.font = "22px sans-serif";
+                ctx.fillText(item.emoji, itemX, item.y);
+
+                // Collision detection
+                const distY = Math.abs(item.y - tractor.y);
+                if (distY < 24 && item.lane === tractor.lane) {
+                    if (item.type === "rock") {
+                        isGameOver = true;
+                        if (gameOverlay) gameOverlay.classList.remove("hidden");
+                    } else {
+                        gameScore += 10;
+                        if (gameScore > gameHighScore) {
+                            gameHighScore = gameScore;
+                            if (gameHighScoreEl) gameHighScoreEl.textContent = gameHighScore;
+                        }
+                        if (gameScoreEl) gameScoreEl.textContent = gameScore;
+                        itemSpeed += 0.04;
+                        items.splice(i, 1);
+                    }
+                    continue;
+                }
+
+                // Remove off-screen items
+                if (item.y > h + 30) {
+                    items.splice(i, 1);
+                }
+            }
+
+            gameAnimationId = requestAnimationFrame(updateAndDrawGame);
+        }
+
+        function moveTractor(direction) {
+            if (isGameOver) return;
+            if (direction === "left" && tractor.lane > 0) tractor.lane--;
+            if (direction === "right" && tractor.lane < 2) tractor.lane++;
+        }
+
+        window.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
+                moveTractor("left");
+            } else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
+                moveTractor("right");
+            }
+        });
+
+        if (touchLeftBtn) touchLeftBtn.addEventListener("click", () => moveTractor("left"));
+        if (touchRightBtn) touchRightBtn.addEventListener("click", () => moveTractor("right"));
+        if (restartGameBtn) restartGameBtn.addEventListener("click", () => resetGame());
+
+        window.addEventListener("resize", resizeGameCanvas);
+
+        function escapeHtml(value) {
+            if (value === null || value === undefined) return "";
+            return String(value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function highlightMatch(text, query) {
+            if (!text) return "-";
+            const escapedText = escapeHtml(text);
+            const cleanQuery = query.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            if (!cleanQuery) return escapedText;
+
+            const regex = new RegExp(`(${cleanQuery})`, "gi");
+            return escapedText.replace(regex, `<mark class="bg-jdyellow text-jdcharcoal font-black px-0.5 rounded">$1</mark>`);
+        }
+
+        function renderTable(records) {
+            tableBody.innerHTML = "";
+            const query = pinSearchInput.value.trim();
+
+            // If no PIN has been typed, prompt user instead of displaying the entire dataset
+            if (!query) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="py-12 px-4 text-center text-gray-500">
+                            <div class="flex flex-col items-center justify-center space-y-2">
+                                <svg class="w-10 h-10 text-jdgreen/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                                <span class="font-bold text-gray-700 text-base">Please enter or paste a PIN above to view PIP details</span>
+                                <span class="text-xs text-gray-400">Results will appear dynamically as you type.</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                recordsSummary.textContent = pipData.length > 0 
+                    ? `Ready (${pipData.length} records loaded) • Enter a PIN above` 
+                    : "Waiting for data...";
+                return;
+            }
+
+            if (!records || records.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="py-12 px-4 text-center text-gray-500">
+                            <div class="flex flex-col items-center justify-center space-y-2">
+                                <svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span class="font-semibold text-gray-600 text-base">No matching PINs found for "${escapeHtml(query)}"</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                recordsSummary.textContent = "Showing: 0 records";
+                return;
+            }
+
+            recordsSummary.textContent = `Showing: ${records.length} matching record(s)`;
+
+            records.forEach((row, index) => {
+                const pin = row["PIN"] || row["pin"] || "";
+                const dealer = row["Dealer Location"] || row["Dealer"] || row["dealer"] || "-";
+                const pipProgram = row["PIP Program"] || row["pip program"] || "-";
+                const pipNumber = row["PIP Number"] || row["pip number"] || "-";
+                const part1 = (row["Part 1"] || row["part 1"] || "").trim();
+                const part2 = (row["Part 2"] || row["part 2"] || "").trim();
+
+                const isNoPartNeeded = !part1 && !part2;
+
+                const tr = document.createElement("tr");
+                tr.className = index % 2 === 0 ? "bg-white hover:bg-yellow-50/50 transition-colors" : "bg-gray-50/70 hover:bg-yellow-50/50 transition-colors";
+
+                const noPartBadge = `<span class="inline-block bg-yellow-100 border border-yellow-300 text-yellow-900 font-bold px-2 py-1 rounded text-xs leading-tight tracking-tight">NO PART NEEDED, OPEN AND CLOSE JOB CARD</span>`;
+
+                tr.innerHTML = `
+                    <td data-label="PIN" class="py-3 px-4">
+                        <span class="font-mono font-bold bg-gray-100 text-jdgreen-dark border border-gray-300 px-2 py-1 rounded text-xs sm:text-sm tracking-wider inline-block">
+                            ${highlightMatch(pin, query)}
+                        </span>
+                    </td>
+                    <td data-label="Dealer" class="py-3 px-4 font-medium text-gray-700">${escapeHtml(dealer)}</td>
+                    <td data-label="PIP Program" class="py-3 px-4 font-medium text-gray-900">${escapeHtml(pipProgram)}</td>
+                    <td data-label="PIP Number" class="py-3 px-4">
+                        <span class="font-bold text-jdgreen">${highlightMatch(pipNumber, query)}</span>
+                    </td>
+                    <td data-label="Part 1" class="py-3 px-4">
+                        ${isNoPartNeeded ? noPartBadge : (part1 ? `<span class="font-mono font-semibold text-gray-800">${escapeHtml(part1)}</span>` : '<span class="text-gray-400">-</span>')}
+                    </td>
+                    <td data-label="Part 2" class="py-3 px-4">
+                        ${isNoPartNeeded ? noPartBadge : (part2 ? `<span class="font-mono font-semibold text-gray-800">${escapeHtml(part2)}</span>` : '<span class="text-gray-400">-</span>')}
+                    </td>
+                `;
+
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function setupFuzzySearch(dataset) {
+            fuseInstance = new Fuse(dataset, {
+                keys: [
+                    { name: "PIN", weight: 0.8 },
+                    { name: "PIP Number", weight: 0.2 }
+                ],
+                threshold: 0.2, // Stricter threshold to avoid catching off-by-one serial numbers
+                includeScore: true,
+                ignoreLocation: true,
+                minMatchCharLength: 2
+            });
+        }
+
+        function executeSearch(query) {
+            if (!query || !pipData || pipData.length === 0) return [];
+
+            const cleanQuery = query.trim().toUpperCase().replace(/[\s\-_]/g, "");
+            if (!cleanQuery) return [];
+
+            // Step 1: Strict substring matching (Exact PIN, Exact serial suffix, or exact substring)
+            const exactMatches = [];
+            for (const row of pipData) {
+                const pin = String(row["PIN"] || row["pin"] || "").toUpperCase().replace(/[\s\-_]/g, "");
+                const pipNumber = String(row["PIP Number"] || row["pip number"] || "").toUpperCase().replace(/[\s\-_]/g, "");
+
+                if (pin === cleanQuery) {
+                    exactMatches.push({ item: row, priority: 0 }); // Full PIN exact match
+                } else if (pin.endsWith(cleanQuery)) {
+                    exactMatches.push({ item: row, priority: 1 }); // Exact serial suffix (e.g. 047823)
+                } else if (pin.includes(cleanQuery)) {
+                    exactMatches.push({ item: row, priority: 2 }); // Exact substring inside PIN
+                } else if (pipNumber.includes(cleanQuery)) {
+                    exactMatches.push({ item: row, priority: 3 }); // PIP number exact substring
+                }
+            }
+
+            // If exact substring matches exist, FILTER OUT ALL fuzzy false positives completely!
+            if (exactMatches.length > 0) {
+                exactMatches.sort((a, b) => a.priority - b.priority);
+                return exactMatches.map(entry => entry.item);
+            }
+
+            // Step 2: Fallback to strict fuzzy match ONLY when no exact match exists in the dataset
+            if (fuseInstance) {
+                const searchResults = fuseInstance.search(cleanQuery);
+                return searchResults
+                    .filter(res => (res.score !== undefined ? res.score <= 0.2 : true))
+                    .map(res => res.item);
+            }
+
+            return [];
+        }
+
+        pinSearchInput.addEventListener("input", () => {
+            const query = pinSearchInput.value.trim();
+            clearSearchBtn.classList.toggle("hidden", query.length === 0);
+
+            if (!pipData || pipData.length === 0 || !query) {
+                renderTable([]);
+                return;
+            }
+
+            const results = executeSearch(query);
+            renderTable(results);
+        });
+
+        clearSearchBtn.addEventListener("click", () => {
+            pinSearchInput.value = "";
+            clearSearchBtn.classList.add("hidden");
+            pinSearchInput.focus();
+            renderTable([]);
+        });
+
+        async function fetchPIPData() {
+            // Reset dataset and state
+            pipData = [];
+            fuseInstance = null;
+            pinSearchInput.disabled = true;
+            pinSearchInput.placeholder = "Loading records, please wait...";
+            refreshIcon.classList.add("animate-spin");
+
+            // Show loading & game card
+            if (loadingGameCard) loadingGameCard.classList.remove("hidden");
+            resetGame();
+            resizeGameCanvas();
+            if (!gameAnimationId) {
+                gameAnimationId = requestAnimationFrame(updateAndDrawGame);
+            }
+
+            let elapsedSeconds = 0;
+            if (elapsedInterval) clearInterval(elapsedInterval);
+
+            const updateLoadingUI = () => {
+                const minutes = String(Math.floor(elapsedSeconds / 60)).padStart(2, "0");
+                const seconds = String(elapsedSeconds % 60).padStart(2, "0");
+                if (countdownClock) countdownClock.textContent = `${minutes}:${seconds}`;
+
+                // Calculate progress bar up to 180s (with a soft marker for the 90-100s typical window)
+                const percent = Math.min(100, Math.round((elapsedSeconds / TIMEOUT_SECONDS) * 100));
+                if (timerBar) timerBar.style.width = `${percent}%`;
+
+                statusIndicator.innerHTML = `
+                    <span class="inline-block w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span class="text-amber-800 font-medium">Fetching flow data (${elapsedSeconds}s elapsed / ~90–100s typical)...</span>
+                `;
+                const loadingNotice = document.getElementById("loadingNotice");
+                if (loadingNotice) {
+                    loadingNotice.textContent = `Compiling large PIP dataset in Power Automate (${elapsedSeconds}s elapsed, please wait)...`;
+                }
+            };
+
+            updateLoadingUI();
+            elapsedInterval = setInterval(() => {
+                elapsedSeconds += 1;
+                updateLoadingUI();
+            }, 1000);
+
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="py-12 px-4 text-center text-gray-500">
+                        <div class="flex flex-col items-center justify-center space-y-2">
+                            <div class="w-7 h-7 border-2 border-jdgreen border-t-transparent rounded-full animate-spin"></div>
+                            <p class="text-sm font-medium" id="loadingNotice">Running Power Automate flow (typically takes 90–100s)...</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+
+            // Setup abort controller with 180 seconds timeout (180,000 ms)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_SECONDS * 1000);
+
+            try {
+                let response = null;
+
+                // Step 1: Attempt standard GET request first without custom headers (avoids CORS preflight rejection)
+                try {
+                    response = await fetch(API_URL, {
+                        method: "GET",
+                        signal: controller.signal
+                    });
+                } catch (getErr) {
+                    console.log("GET attempt finished with error, trying POST...", getErr);
+                }
+
+                // Step 2: If GET is disallowed or failed, attempt POST
+                if (!response || !response.ok) {
+                    if (!response || response.status === 405 || response.status === 400) {
+                        response = await fetch(API_URL, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({}),
+                            signal: controller.signal
+                        });
+                    }
+                }
+
+                clearTimeout(timeoutId);
+                clearInterval(elapsedInterval);
+
+                if (!response || !response.ok) {
+                    throw new Error(`Server returned error: ${response ? response.status : 'No response'}`);
+                }
+
+                const jsonResult = await response.json();
+
+                // Normalize data array
+                if (Array.isArray(jsonResult)) {
+                    pipData = jsonResult;
+                } else if (jsonResult && typeof jsonResult === "object") {
+                    if (Array.isArray(jsonResult.value)) {
+                        pipData = jsonResult.value;
+                    } else if (Array.isArray(jsonResult.records)) {
+                        pipData = jsonResult.records;
+                    } else if (jsonResult["PIN"] || jsonResult["PIP Number"]) {
+                        pipData = [jsonResult];
+                    } else {
+                        pipData = [];
+                    }
+                } else {
+                    pipData = [];
+                }
+
+                if (pipData.length === 0) {
+                    throw new Error("Empty dataset received");
+                }
+
+                // Success state: Hide loading game card and enable search
+                if (loadingGameCard) loadingGameCard.classList.add("hidden");
+                if (gameAnimationId) {
+                    cancelAnimationFrame(gameAnimationId);
+                    gameAnimationId = null;
+                }
+
+                statusIndicator.innerHTML = `
+                    <span class="inline-block w-3 h-3 rounded-full bg-jdgreen"></span>
+                    <span class="text-jdgreen font-bold">Connected &amp; Loaded (${pipData.length.toLocaleString()} records)</span>
+                `;
+                pinSearchInput.disabled = false;
+                pinSearchInput.placeholder = "Enter or paste PIN (e.g. 1PY5039...)";
+                setupFuzzySearch(pipData);
+                renderTable([]);
+
+            } catch (error) {
+                clearTimeout(timeoutId);
+                clearInterval(elapsedInterval);
+                console.error("Data load failed:", error);
+
+                if (loadingGameCard) loadingGameCard.classList.add("hidden");
+                if (gameAnimationId) {
+                    cancelAnimationFrame(gameAnimationId);
+                    gameAnimationId = null;
+                }
+
+                pipData = [];
+                fuseInstance = null;
+                pinSearchInput.disabled = false;
+                pinSearchInput.placeholder = "Enter or paste PIN (e.g. 1PY5039...)";
+
+                statusIndicator.innerHTML = `
+                    <span class="inline-block w-3 h-3 rounded-full bg-red-500"></span>
+                    <span class="text-red-600 font-semibold">No data receieved from server</span>
+                `;
+
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="py-12 px-4 text-center">
+                            <div class="flex flex-col items-center justify-center space-y-2">
+                                <svg class="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                </svg>
+                                <span class="font-bold text-gray-700 text-base">No data receieved from server</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                recordsSummary.textContent = "Total records: 0";
+            } finally {
+                refreshIcon.classList.remove("animate-spin");
+            }
+        }
+
+        refreshBtn.addEventListener("click", () => {
+            fetchPIPData();
+        });
+
+        window.addEventListener("DOMContentLoaded", () => {
+            fetchPIPData();
+        });
+    </script>
+</body>
+</html>
