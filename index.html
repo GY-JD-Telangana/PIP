@@ -266,8 +266,6 @@
         const restartGameBtn = document.getElementById("restartGameBtn");
         const gameScoreEl = document.getElementById("gameScore");
         const gameHighScoreEl = document.getElementById("gameHighScore");
-        const touchLeftBtn = document.getElementById("touchLeftBtn");
-        const touchRightBtn = document.getElementById("touchRightBtn");
 
         let gameAnimationId = null;
         let gameScore = 0;
@@ -414,8 +412,81 @@
             }
         });
 
-        if (touchLeftBtn) touchLeftBtn.addEventListener("click", () => moveTractor("left"));
-        if (touchRightBtn) touchRightBtn.addEventListener("click", () => moveTractor("right"));
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchStartTime = 0;
+        let hasSwiped = false;
+        const SWIPE_THRESHOLD = 28; // Minimum pixels for a swipe trigger
+
+        function handleTouchStart(e) {
+            if (!e.touches || e.touches.length === 0) return;
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            touchStartTime = Date.now();
+            hasSwiped = false;
+        }
+
+        function handleTouchMove(e) {
+            if (!e.touches || e.touches.length === 0) return;
+            const currentX = e.touches[0].clientX;
+            const currentY = e.touches[0].clientY;
+            const diffX = currentX - touchStartX;
+            const diffY = currentY - touchStartY;
+
+            // Prioritize horizontal swipe over vertical scroll
+            if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(diffX) > Math.abs(diffY)) {
+                if (e.cancelable) e.preventDefault(); // Prevent page bouncing/scroll during gameplay
+
+                if (diffX > 0) {
+                    moveTractor("right");
+                } else {
+                    moveTractor("left");
+                }
+
+                hasSwiped = true;
+                // Reset origin to current point so fluid continuous swipes shift lanes smoothly
+                touchStartX = currentX;
+                touchStartY = currentY;
+            }
+        }
+
+        function handleTouchEnd(e) {
+            const touchDuration = Date.now() - touchStartTime;
+
+            // If the user tapped directly rather than swiping, steer tractor directly to the tapped lane
+            if (!hasSwiped && touchDuration < 320 && canvas) {
+                const rect = canvas.getBoundingClientRect();
+                const tapX = (e.changedTouches && e.changedTouches.length > 0) 
+                    ? e.changedTouches[0].clientX - rect.left 
+                    : touchStartX - rect.left;
+
+                if (tapX >= 0 && tapX <= rect.width) {
+                    const tappedLane = Math.floor((tapX / rect.width) * 3);
+                    if (tappedLane >= 0 && tappedLane <= 2 && !isGameOver) {
+                        tractor.lane = tappedLane;
+                    }
+                }
+            }
+            hasSwiped = false;
+        }
+
+        if (canvas) {
+            canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
+            canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
+            canvas.addEventListener("touchend", handleTouchEnd, { passive: false });
+            canvas.addEventListener("touchcancel", () => { hasSwiped = false; });
+
+            // Also allow direct desktop mouse clicks on lanes to steer
+            canvas.addEventListener("click", (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickedLane = Math.floor((clickX / rect.width) * 3);
+                if (clickedLane >= 0 && clickedLane <= 2 && !isGameOver) {
+                    tractor.lane = clickedLane;
+                }
+            });
+        }
+
         if (restartGameBtn) restartGameBtn.addEventListener("click", () => resetGame());
 
         window.addEventListener("resize", resizeGameCanvas);
